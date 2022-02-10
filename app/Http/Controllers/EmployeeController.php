@@ -101,7 +101,7 @@ class EmployeeController extends Controller
                     $hierarchy->hierarchy_id = $hierarchyId;
                 } else {
                     $headsHierarchyId = Hierarchies::where('subordinate_id', '=', $nameToId)->first()->hierarchy_id;
-                    $counter = Hierarchies::where('subordinate_id', '=', $nameToId)->get();
+                    $counter = Hierarchies::where('hierarchy_id', '=', $headsHierarchyId)->get();
                     if (count($counter) >= 5) {
                         return response()->json(array(
                             'success' => false,
@@ -124,7 +124,8 @@ class EmployeeController extends Controller
         }
         //________________________________________________________________
 
-        $employee->employment_date = $req->input('date');
+        $date = DateTime::createFromFormat('d.m.y', $req->input('date'));
+        $employee->employment_date = $date;
         $employee->admin_updated_id = auth()->user()->id;
         $employee->admin_created_id = auth()->user()->id;
 
@@ -222,7 +223,7 @@ class EmployeeController extends Controller
                 $isHead = Hierarchies::where('head_id', '=', $nameToId)->first();
                 $isSubordinate = Hierarchies::where('subordinate_id', '=', $nameToId)->first();
                 //Check if potential employee can be supervisor
-                if (is_null($isHead)) {
+                if (is_null($isHead) && ($employee->id !== $nameToId)) {
                     // Check if head is employees subordinate
 
                     if (!is_null($employee->subordinateRelation)){
@@ -238,8 +239,7 @@ class EmployeeController extends Controller
                     if(is_null($hierarchy)){
                         $hierarchy = new Hierarchies();
                     }
-                    
-                    if (is_null($isSubordinate))    //Check if potential head has supervisor
+                    if (is_null($isSubordinate)&&(is_null($employee->subordinateRelation)))    //Check if potential head has supervisor
                     {
                         $hierarchy_counter = Hierarchies::orderBy('hierarchy_id', 'desc')->first()->hierarchy_id;
                         if ($hierarchy_counter === null) {
@@ -247,7 +247,14 @@ class EmployeeController extends Controller
                         }
                         $hierarchyId = $hierarchy_counter + 1;  //creating new hierarchy
                         $hierarchy->hierarchy_id = $hierarchyId;
-                    } else {
+                    } else if(!is_null($employee->subordinateRelation)&&(Hierarchies::where('hierarchy_id', '=', $employee->subordinateRelation->hierarchy_id == 5)->get()))
+                    {
+                        return response()->json(array(
+                            'success' => false,
+                            'errors' => ['head' => 'Hierarchy reached level 5']
+                        ), 422);
+                    }
+                    else {
                         $headsHierarchyId = Hierarchies::where('subordinate_id', '=', $nameToId)->first()->hierarchy_id;
                         $counter = Hierarchies::where('hierarchy_id', '=', $headsHierarchyId)->get();
                         // checking that hierarchy is not reached level 6
